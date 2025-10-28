@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# radio_with_ids.py
-# Versão modificada: cada faixa recebe um ID interno de 3 dígitos durante o scan
-# e é possível selecionar diretamente uma faixa pelo ID (pula sem iterar next/prev).
 
 import os
 import subprocess
@@ -516,6 +513,12 @@ INDEX_HTML = """
       renderFromLastStatus(); await doControlWithLoader('/prev','loaderPrev');
       try{ player.play().catch(()=>{}); }catch(e){}
     }
+    if (player) {
+        const currentSrc = '/stream?t=' + Date.now();
+        player.src = currentSrc;
+        player.load();
+        player.play().catch(()=>{});
+    }
   }
 
   async function setLoop(){
@@ -578,6 +581,15 @@ INDEX_HTML = """
     renderFromLastStatus();
     suppressRefreshUntil = Date.now() + 2500;
 
+    // força o navegador a recarregar o stream
+    if (player) {
+        const currentSrc = '/stream?t=' + Date.now();
+        player.pause();
+        player.src = currentSrc;
+        player.load();
+        player.play().catch(() => {});
+    }
+
     try{
       await fetch('/select', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: desiredId }) });
     }catch(e){ console.warn('Erro ao solicitar seleção direta', e); }
@@ -625,6 +637,24 @@ INDEX_HTML = """
         try{ player.play().catch(()=>{}); }catch(e){}
       }catch(e){}
     })();
+
+    player.addEventListener('ended', () => {
+        console.log('Stream ended — reconnecting...');
+        setTimeout(() => {
+            player.src = '/stream?t=' + Date.now(); // força nova conexão
+            player.load();
+            player.play().catch(()=>{});
+        }, 500);
+    });
+
+    player.addEventListener('error', () => {
+        console.warn('Stream error — reconnecting...');
+        setTimeout(() => {
+            player.src = '/stream?t=' + Date.now();
+            player.load();
+            player.play().catch(()=>{});
+        }, 500);
+    });
   });
 </script>
 </body>
